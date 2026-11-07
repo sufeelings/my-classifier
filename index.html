@@ -48,10 +48,16 @@
         <div id="ai-done" hidden>
           <p id="ai-cond" class="small muted"></p>
           <table class="compare">
-            <thead><tr><th></th><th>규칙</th><th>AI</th></tr></thead>
+            <thead><tr id="compare-head"></tr></thead>
             <tbody id="compare-body"></tbody>
           </table>
           <p id="ai-failed" class="small"></p>
+          <h2>잘 됐나 <span class="muted small">(CLAUDE.md 기준)</span></h2>
+          <table class="compare" id="verdict" hidden>
+            <thead><tr><th></th><th>두 번 사이 흔들림</th><th>규칙과의 차이</th><th>판정</th></tr></thead>
+            <tbody id="verdict-body"></tbody>
+          </table>
+          <p id="verdict-note" class="small muted"></p>
           <button id="ai-download" class="secondary">AI 채점 결과 내려받기</button>
         </div>
       </div>

@@ -5,6 +5,7 @@
   var criteria = null;
   var keywords = null;
   var lastAI = null; // 내려받기용
+  var runs = [];     // 이 화면에서 잰 AI 채점 (최근 두 번)
 
   var $ = function (id) { return document.getElementById(id); };
 
@@ -229,29 +230,17 @@
         var as = tally(answers, aiJudged);
         var when = new Date().toISOString();
 
-        $("ai-progress").textContent = "AI 채점 끝 · " + answers.length + "/" + answers.length;
-        $("ai-cond").textContent = "잰 조건: 모델 " + (model || "(답 없음)") + " · criteria.json v" + criteria.version +
-          " · keywords.json v" + keywords.version + " · data/answer.json " + answers.length + "문장 · 가린 문장 · " + when;
+        runs.push({ model: model, when: when, s: as });
+        if (runs.length > 2) runs.shift();
 
-        var rows = [
-          ["칸 정확도", pct(rs.cat, rs.n) + " (" + rs.cat + ")", pct(as.cat, as.n) + " (" + as.cat + ")"],
-          ["긴급도 정확도", pct(rs.urg, rs.n) + " (" + rs.urg + ")", pct(as.urg, as.n) + " (" + as.urg + ")"],
-          ["둘 다 맞음", rs.both + "/" + rs.n, as.both + "/" + as.n],
-          [rs.worstCat + " 놓침 (가장 나쁜 실수)", rs.worstMiss + "/" + rs.worstTotal, as.worstMiss + "/" + as.worstTotal, true],
-          ["답 못 받음 (오답으로 셈)", "-", String(as.failed), as.failed > 0]
-        ];
-        var body = $("compare-body");
-        body.textContent = "";
-        rows.forEach(function (row) {
-          var tr = document.createElement("tr");
-          for (var c = 0; c < 3; c++) {
-            var td = document.createElement("td");
-            td.textContent = row[c];
-            if (c === 2 && row[3]) td.className = "bad";
-            tr.appendChild(td);
-          }
-          body.appendChild(tr);
-        });
+        $("ai-progress").textContent = "AI 채점 끝 · " + answers.length + "/" + answers.length +
+          " (이 화면에서 " + runs.length + "번째 결과까지 보관)";
+        $("ai-cond").textContent = "잰 조건: criteria.json v" + criteria.version +
+          " · keywords.json v" + keywords.version + " · data/answer.json " + answers.length + "문장 · 가린 문장 · " +
+          runs.map(function (r, i) { return "AI " + (i + 1) + "회 = " + (r.model || "(답 없음)") + " " + r.when; }).join(" · ");
+
+        renderCompare(rs);
+        renderVerdict(rs);
 
         $("ai-failed").textContent = as.failed
           ? "답을 못 받은 문장 " + as.failed + "개 — " + Array.from(new Set(aiError.filter(Boolean))).join(" / ")
@@ -261,6 +250,7 @@
           조건: {
             모델: model,
             시각: when,
+            회차: runs.length,
             criteria_version: criteria.version,
             keywords_version: keywords.version,
             문장_수: answers.length,
@@ -293,6 +283,74 @@
       $("score-btn").disabled = false;
     });
   });
+
+  function cell(tr, text, cls, tag) {
+    var td = document.createElement(tag || "td");
+    td.textContent = text;
+    if (cls) td.className = cls;
+    tr.appendChild(td);
+  }
+
+  // 규칙 · AI 1회 · AI 2회 를 나란히
+  function renderCompare(rs) {
+    var head = $("compare-head");
+    head.textContent = "";
+    cell(head, "", null, "th");
+    cell(head, "규칙", null, "th");
+    runs.forEach(function (r, i) { cell(head, "AI " + (i + 1) + "회", null, "th"); });
+
+    var metrics = [
+      { label: "칸 정확도", get: function (s) { return pct(s.cat, s.n) + " (" + s.cat + ")"; } },
+      { label: "긴급도 정확도", get: function (s) { return pct(s.urg, s.n) + " (" + s.urg + ")"; } },
+      { label: "둘 다 맞음", get: function (s) { return s.both + "/" + s.n; } },
+      { label: rs.worstCat + " 놓침 (가장 나쁜 실수)", get: function (s) { return s.worstMiss + "/" + s.worstTotal; },
+        bad: function (s) { return s.worstMiss > 0; } },
+      { label: "답 못 받음 (오답으로 셈)", get: function (s) { return String(s.failed); }, ruleText: "-",
+        bad: function (s) { return s.failed > 0; } }
+    ];
+    var body = $("compare-body");
+    body.textContent = "";
+    metrics.forEach(function (m) {
+      var tr = document.createElement("tr");
+      cell(tr, m.label);
+      cell(tr, m.ruleText || m.get(rs), m.bad && !m.ruleText && m.bad(rs) ? "bad" : null);
+      runs.forEach(function (r) { cell(tr, m.get(r.s), m.bad && m.bad(r.s) ? "bad" : null); });
+      body.appendChild(tr);
+    });
+  }
+
+  // CLAUDE.md: 규칙보다 칸 · 긴급도가 각각 높고, 그 차이가 두 번 잰 흔들림보다 크다
+  function renderVerdict(rs) {
+    var table = $("verdict");
+    var note = $("verdict-note");
+    if (runs.length < 2) {
+      table.hidden = true;
+      note.textContent = "«AI로 채점»을 한 번 더 누르면 두 번 사이 흔들림과 규칙과의 차이가 나옵니다.";
+      return;
+    }
+    var a = runs[0].s, b = runs[1].s;
+    var body = $("verdict-body");
+    body.textContent = "";
+    var allPass = true;
+    [["칸", "cat"], ["긴급도", "urg"]].forEach(function (k) {
+      var sway = Math.abs(a[k[1]] - b[k[1]]);
+      var diff = Math.min(a[k[1]], b[k[1]]) - rs[k[1]];
+      var pass = diff > 0 && diff > sway;
+      if (!pass) allPass = false;
+      var tr = document.createElement("tr");
+      cell(tr, k[0]);
+      cell(tr, sway + "개");
+      cell(tr, (diff > 0 ? "+" : "") + diff + "개");
+      cell(tr, pass ? "넘음" : "못 넘음", pass ? null : "bad");
+      body.appendChild(tr);
+    });
+    table.hidden = false;
+    var sameModel = runs[0].model === runs[1].model;
+    note.textContent =
+      "흔들림 = AI 1회와 2회의 맞은 수 차이 · 규칙과의 차이 = 두 번 중 낮은 쪽 − 규칙 (30문장 중 개수). " +
+      (allPass ? "칸 · 긴급도 모두 기준을 넘었습니다." : "아직 기준을 넘지 못한 항목이 있습니다.") +
+      (sameModel ? "" : " ⚠ 두 번의 모델이 달라 견주기 어렵습니다.");
+  }
 
   $("ai-download").addEventListener("click", function () {
     if (!lastAI) return;
