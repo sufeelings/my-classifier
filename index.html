@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>IT 요청 분류기</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header>
+    <h1>IT 요청 분류기</h1>
+    <p class="sub">AI(Gemini)로 가르고, 안 되면 규칙으로 가릅니다</p>
+  </header>
+
+  <nav class="tabs" role="tablist">
+    <button class="tab active" role="tab" data-tab="classify" aria-selected="true">분류</button>
+    <button class="tab" role="tab" data-tab="score" aria-selected="false">채점</button>
+  </nav>
+
+  <main>
+    <section id="classify" class="panel">
+      <form id="form">
+        <label for="input">요청 문장 한 줄</label>
+        <textarea id="input" rows="3" placeholder="예: 비밀번호를 틀려서 계정이 잠겼어요"></textarea>
+        <p class="small muted hint">이름 · 전화번호 · 사번은 이 브라우저에서 가린 뒤에 보냅니다. 넣은 문장은 저장하지 않습니다.</p>
+        <button type="submit" class="primary" id="classify-btn">분류하기</button>
+      </form>
+      <div id="result" class="card" hidden>
+        <div class="row"><span class="k">가린 문장</span><span id="r-masked" class="v"></span></div>
+        <div class="badges">
+          <span class="badge" id="r-cat"></span>
+          <span class="badge" id="r-urg"></span>
+        </div>
+        <div class="row"><span class="k">이유</span><span id="r-why" class="v small"></span></div>
+        <p id="r-source" class="small muted source"></p>
+      </div>
+    </section>
+
+    <section id="score" class="panel" hidden>
+      <p class="small muted">채점용 정답 파일(data/answer.json)은 단추를 누를 때 처음 읽습니다.</p>
+      <div class="btn-row">
+        <button id="score-btn" class="primary">규칙으로 채점</button>
+        <button id="ai-score-btn" class="primary">AI로 채점</button>
+      </div>
+
+      <div id="ai-out" hidden>
+        <p id="ai-progress" class="progress"></p>
+        <div id="ai-done" hidden>
+          <p id="ai-cond" class="small muted"></p>
+          <table class="compare">
+            <thead><tr><th></th><th>규칙</th><th>AI</th></tr></thead>
+            <tbody id="compare-body"></tbody>
+          </table>
+          <p id="ai-failed" class="small"></p>
+          <button id="ai-download" class="secondary">AI 채점 결과 내려받기</button>
+        </div>
+      </div>
+
+      <div id="score-out" hidden>
+        <div class="worst" id="worst">
+          <span class="l">가장 나쁜 실수 · <span id="w-cat"></span> 놓침</span>
+          <span class="n" id="w-n"></span>
+          <span class="small" id="w-desc"></span>
+        </div>
+        <p id="cond" class="small muted"></p>
+        <div class="stats">
+          <div class="stat"><span class="n" id="s-cat"></span><span class="l">칸 정확도</span></div>
+          <div class="stat"><span class="n" id="s-urg"></span><span class="l">긴급도 정확도</span></div>
+          <div class="stat"><span class="n" id="s-both"></span><span class="l">둘 다 맞음</span></div>
+        </div>
+        <h2>틀린 문장 <span id="wrong-count" class="muted"></span></h2>
+        <ul id="wrong" class="wrong"></ul>
+      </div>
+    </section>
+
+    <p id="error" class="error" hidden></p>
+  </main>
+
+  <script src="mask.js"></script>
+  <script src="rules.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
